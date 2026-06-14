@@ -1,0 +1,47 @@
+const Database = require('better-sqlite3');
+const path = require('path');
+const fs = require('fs');
+const { CONFIG_DIR } = require('./config');
+
+let db;
+
+function getDb() {
+  if (db) return db;
+
+  fs.mkdirSync(CONFIG_DIR, { recursive: true });
+  db = new Database(path.join(CONFIG_DIR, 'movies.db'));
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS movies (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tmdb_id INTEGER UNIQUE,
+      title TEXT NOT NULL,
+      original_title TEXT,
+      year INTEGER,
+      poster_path TEXT,
+      backdrop_path TEXT,
+      overview TEXT,
+      director TEXT,
+      genres TEXT,
+      rating REAL,
+      runtime INTEGER,
+      confirmed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS sources (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      video_id TEXT UNIQUE NOT NULL,
+      video_title TEXT,
+      playlist_id TEXT,
+      movie_id INTEGER REFERENCES movies(id),
+      status TEXT DEFAULT 'pending',
+      confidence REAL,
+      raw_match TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  return db;
+}
+
+module.exports = { getDb };

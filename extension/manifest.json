@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "YouTube Movie Collector",
+  "version": "1.0.0",
+  "description": "Collect movies from YouTube playlists into your personal library.",
+  "permissions": [],
+  "host_permissions": [
+    "*://*.youtube.com/*",
+    "http://localhost:3457/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.youtube.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "Open Movie Library (localhost:3457)"
+  }
+}
