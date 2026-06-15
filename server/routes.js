@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const { startJob, getJob } = require('./pipeline');
-const { searchMovie, getMovieDetails } = require('./tmdb');
+const { searchTmdb, getDetails } = require('./tmdb');
 const { getDb } = require('./db');
 const { loadConfig } = require('./config');
 
 router.post('/collect', async (req, res) => {
-  const { playlistId } = req.body;
+  const { playlistId, forceRescan } = req.body;
   if (!playlistId) return res.status(400).json({ error: 'playlistId required' });
 
   const config = loadConfig();
@@ -15,7 +15,7 @@ router.post('/collect', async (req, res) => {
   if (!config.tmdbApiKey) return res.status(400).json({ error: 'tmdbApiKey not configured' });
 
   try {
-    const jobId = await startJob(playlistId, config);
+    const jobId = await startJob(playlistId, config, !!forceRescan);
     res.json({ jobId });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -62,7 +62,10 @@ router.post('/review/:id/confirm', async (req, res) => {
 
   const config = loadConfig();
   try {
-    const details = await getMovieDetails(tmdbId, config.tmdbApiKey);
+    // Infer media_type from the stored candidates (populated by the pipeline scorer).
+    const candidate = candidates.find(c => c.id === tmdbId || c.id === Number(tmdbId));
+    const mediaType = req.body.media_type || candidate?.media_type || 'movie';
+    const details = await getDetails(tmdbId, mediaType, config.tmdbApiKey);
     const movieId = insertMovie(db, details);
     db.prepare("UPDATE sources SET status = 'confirmed', movie_id = ? WHERE id = ?").run(movieId, source.id);
     res.json({ success: true, movieId });
@@ -88,7 +91,8 @@ router.post('/review/:id/manual', async (req, res) => {
 
   const config = loadConfig();
   try {
-    const details = await getMovieDetails(tmdb_id, config.tmdbApiKey);
+    const mediaType = req.body.media_type || 'movie';
+    const details = await getDetails(tmdb_id, mediaType, config.tmdbApiKey);
     const movieId = insertMovie(db, details);
     db.prepare("UPDATE sources SET status = 'confirmed', movie_id = ? WHERE id = ?").run(movieId, source.id);
     res.json({ success: true, movieId });
@@ -103,7 +107,8 @@ router.get('/search/tmdb', async (req, res) => {
 
   const config = loadConfig();
   try {
-    const results = await searchMovie(q, null, config.tmdbApiKey);
+    // Use /search/multi so the review search finds both movies and TV shows.
+    const results = await searchTmdb(q, null, 'unknown', config.tmdbApiKey);
     res.json(results.slice(0, 10));
   } catch (err) {
     res.status(500).json({ error: err.message });

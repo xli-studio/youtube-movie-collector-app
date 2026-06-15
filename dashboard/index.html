@@ -617,6 +617,11 @@
       <option value="7">★ 7+</option>
       <option value="6">★ 6+</option>
     </select>
+    <select id="type-filter" title="Filter by type">
+      <option value="">All types</option>
+      <option value="movie">Movies</option>
+      <option value="tv">TV Series</option>
+    </select>
   </div>
 
   <div class="spacer"></div>
@@ -1081,6 +1086,7 @@
     const genre     = document.getElementById('genre-filter').value;
     const year      = parseInt(document.getElementById('year-filter').value) || 0;
     const minRating = parseFloat(document.getElementById('rating-filter').value) || 0;
+    const type      = document.getElementById('type-filter').value;
 
     const filtered = allMovies.filter(m => {
       if (q && !m.title.toLowerCase().includes(q) &&
@@ -1088,21 +1094,36 @@
       if (genre && !(m.genres || []).includes(genre)) return false;
       if (year  && m.year !== year) return false;
       if (minRating && (m.rating || 0) < minRating) return false;
+      if (type  && m.media_type !== type) return false;
       return true;
     });
 
-    updateStatsBar(filtered.length, allMovies.length);
+    updateStatsBar(filtered, allMovies);
     renderGrid(filtered);
   }
 
   // ── Stats bar ──────────────────────────────────────────────────────────────
 
-  function updateStatsBar(shown, total) {
+  function formatLibraryCount(movies) {
+    const movieCount   = movies.filter(m => m.media_type === 'movie').length;
+    const tvCount      = movies.filter(m => m.media_type === 'tv').length;
+    const unknownCount = movies.filter(m => !m.media_type).length;
+    const effectiveMovies = movieCount + unknownCount;
+    const parts = [];
+    if (effectiveMovies > 0)
+      parts.push(`<strong>${effectiveMovies}</strong>&nbsp;movie${effectiveMovies !== 1 ? 's' : ''}`);
+    if (tvCount > 0)
+      parts.push(`<strong>${tvCount}</strong>&nbsp;TV&nbsp;series`);
+    if (parts.length === 0) return '<strong>0</strong>&nbsp;movies';
+    return parts.join('&nbsp;·&nbsp;');
+  }
+
+  function updateStatsBar(filtered, all) {
     const el = document.getElementById('statsbar');
-    const filterActive = shown < total;
+    const filterActive = filtered.length < all.length;
     el.innerHTML = filterActive
-      ? `<strong>${shown}</strong>&nbsp;of&nbsp;<strong>${total}</strong>&nbsp;movies`
-      : `<strong>${total}</strong>&nbsp;movie${total !== 1 ? 's' : ''} in your library`;
+      ? `<strong>${filtered.length}</strong>&nbsp;of&nbsp;<strong>${all.length}</strong>&nbsp;titles`
+      : `${formatLibraryCount(all)}&nbsp;in your library`;
     if (filterActive) {
       const clear = document.createElement('button');
       clear.className = 'topbar-btn';
@@ -1123,6 +1144,7 @@
     document.getElementById('genre-filter').value = '';
     document.getElementById('year-filter').value  = '';
     document.getElementById('rating-filter').value = '';
+    document.getElementById('type-filter').value   = '';
     applyFilters();
   }
 
@@ -1306,6 +1328,7 @@
   document.getElementById('genre-filter').addEventListener('change', applyFilters);
   document.getElementById('year-filter').addEventListener('change', applyFilters);
   document.getElementById('rating-filter').addEventListener('change', applyFilters);
+  document.getElementById('type-filter').addEventListener('change', applyFilters);
 
   document.getElementById('refresh-btn').addEventListener('click', () => {
     document.getElementById('grid-wrap').innerHTML =

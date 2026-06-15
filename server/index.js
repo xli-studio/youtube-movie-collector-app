@@ -8,16 +8,11 @@ const routes = require('./routes');
 const config = loadConfig();
 const app = express();
 
-// Local-only server — accept requests from any Chrome extension and localhost
-app.use(cors({
-  origin: (origin, cb) => {
-    if (!origin || origin.startsWith('chrome-extension://') || origin.startsWith('http://localhost')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Not allowed by CORS'));
-    }
-  },
-}));
+// Server binds to 127.0.0.1 only, so open CORS is safe.
+// Content scripts run in the YouTube page context, making their Origin
+// https://www.youtube.com — not chrome-extension:// — so origin filtering
+// would block legitimate extension requests.
+app.use(cors());
 app.use(express.json());
 // Dashboard (served before API routes so '/' returns the HTML)
 app.use(express.static(path.join(__dirname, '..', 'dashboard')));

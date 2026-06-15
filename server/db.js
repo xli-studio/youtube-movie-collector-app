@@ -25,6 +25,7 @@ function getDb() {
       genres TEXT,
       rating REAL,
       runtime INTEGER,
+      media_type TEXT,
       confirmed_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -40,6 +41,13 @@ function getDb() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
   `);
+
+  // 迁移保障：已有数据库缺少 media_type 列时自动补加，重复执行时静默忽略
+  try {
+    db.prepare("ALTER TABLE movies ADD COLUMN media_type TEXT").run();
+  } catch {
+    // column already exists — ignore
+  }
 
   return db;
 }
