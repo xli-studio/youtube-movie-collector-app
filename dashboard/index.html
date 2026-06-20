@@ -477,6 +477,22 @@
       text-overflow: ellipsis;
     }
     .rc-meta { font-size: 9px; color: var(--text-muted); margin-top: 2px; }
+    .rc-select-btn {
+      display: block;
+      width: 100%;
+      margin-top: 5px;
+      padding: 3px 0;
+      font-size: 9px;
+      font-weight: 600;
+      cursor: pointer;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text-muted);
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .rc-select-btn:hover { border-color: #5b9cf6; color: #5b9cf6; }
+    .ri-candidate.selected .rc-select-btn { border-color: #5b9cf6; color: #5b9cf6; }
 
     .ri-search-wrap { padding: 0 16px 14px; display: none; }
     .ri-search-input {
@@ -499,6 +515,49 @@
       margin-top: 12px;
     }
     .ri-search-hint { font-size: 11px; color: var(--text-muted); padding: 4px 0; }
+
+    .ri-video-embed {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      margin-top: 8px;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .ri-video-embed iframe {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border: 0;
+    }
+    .ri-manual-wrap {
+      display: flex;
+      gap: 6px;
+      margin-top: 8px;
+      align-items: center;
+    }
+    .ri-manual-input {
+      flex: 1;
+      min-width: 0;
+      padding: 6px 10px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      color: var(--text);
+      font-size: 12px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .ri-manual-input:focus { border-color: var(--border-hover); }
+    .ri-manual-input::placeholder { color: var(--text-muted); }
+    .ri-manual-btn {
+      background: transparent;
+      border-color: var(--border);
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+    .ri-manual-btn:hover { border-color: var(--border-hover); color: var(--text); }
 
     .ri-actions {
       display: flex;
@@ -628,7 +687,7 @@
 
   <button class="topbar-btn" id="refresh-btn" title="Refresh library">↺</button>
 
-  <button class="topbar-btn" id="review-btn" onclick="switchView('review')">
+  <button class="topbar-btn" id="review-btn">
     Review
     <span class="review-badge" id="review-badge" hidden></span>
   </button>
@@ -650,7 +709,6 @@
 <!-- ── Review view (filled in Step 4) ───────────────────────────────────── -->
 <div id="view-review">
   <div class="statsbar" id="review-statsbar">
-    <button class="topbar-btn" onclick="switchView('wall')" style="margin-right:4px">← Back</button>
     <span id="review-stats">Review queue</span>
   </div>
   <div id="review-content">
@@ -672,6 +730,12 @@
   let allMovies  = [];
   let currentView = 'wall';
 
+  function esc(str) {
+    const div = document.createElement('div');
+    div.textContent = str == null ? '' : String(str);
+    return div.innerHTML;
+  }
+
   // ── View switching ─────────────────────────────────────────────────────────
 
   function switchView(view) {
@@ -679,13 +743,10 @@
     document.getElementById('view-wall').style.display   = view === 'wall'   ? 'block' : 'none';
     document.getElementById('view-review').style.display = view === 'review' ? 'block' : 'none';
 
-    // Update review button label
-    document.getElementById('review-btn').textContent =
-      view === 'wall' ? 'Review' : '← Wall';
-    // re-append badge (textContent nukes children)
-    document.getElementById('review-btn').appendChild(
-      document.getElementById('review-badge')
-    );
+    // Capture badge before textContent nukes it, then re-append after setting label
+    const badge = document.getElementById('review-badge');
+    document.getElementById('review-btn').textContent = view === 'wall' ? 'Review' : 'Back';
+    document.getElementById('review-btn').appendChild(badge);
 
     if (view === 'review') loadReviewContent();
   }
@@ -771,14 +832,22 @@
     content.appendChild(list);
   }
 
+  function parseTmdbInput(value) {
+    const v = (value || '').trim();
+    if (!v) return null;
+    if (/^\d+$/.test(v)) return { id: parseInt(v, 10), media_type: null };
+    const m = v.match(/themoviedb\.org\/(movie|tv)\/(\d+)/);
+    if (m) return { id: parseInt(m[2], 10), media_type: m[1] };
+    return null;
+  }
+
   function buildReviewItem(item) {
     const rm         = item.raw_match || {};
     const candidates = rm.tmdb_candidates || [];
-    const confidence = item.confidence ?? rm.confidence ?? 0;
-    const movieTitle = rm.movie_title || '(unknown)';
-    const yearLabel  = rm.year ? `(${rm.year})` : '';
-    const confClass  = confidence >= 0.8 ? 'high' : confidence >= 0.6 ? 'medium' : 'low';
-    const confPct    = Math.round(confidence * 100);
+    const movieTitle = rm.detectedTitle || rm.title_clean || '(unknown)';
+    const yearLabel  = rm.release_year_guess ? `(${rm.release_year_guess})` : '';
+    const topScore   = rm.top_score != null ? Math.round(rm.top_score * 10) / 10 : null;
+    const confClass  = topScore == null ? 'low' : topScore >= 70 ? 'high' : topScore >= 50 ? 'medium' : 'low';
 
     const el = document.createElement('div');
     el.className = 'review-item';
@@ -790,7 +859,36 @@
 
     const ytTitle = document.createElement('div');
     ytTitle.className = 'ri-ytitle';
-    ytTitle.textContent = '▶ ' + (item.video_title || '(no title)');
+
+    const ytToggle = document.createElement('span');
+    ytToggle.style.cssText = 'cursor:pointer;user-select:none;';
+    ytToggle.textContent = '▶ ' + (item.video_title || '(no title)');
+    ytTitle.appendChild(ytToggle);
+
+    const embedWrap = document.createElement('div');
+    embedWrap.className = 'ri-video-embed';
+    embedWrap.style.display = 'none';
+    ytTitle.appendChild(embedWrap);
+
+    let embedOpen = false;
+    ytToggle.addEventListener('click', () => {
+      embedOpen = !embedOpen;
+      if (embedOpen) {
+        const iframe = document.createElement('iframe');
+        iframe.src = 'https://www.youtube.com/embed/' + item.video_id;
+        iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+        iframe.allowFullscreen = true;
+        embedWrap.innerHTML = '';
+        embedWrap.appendChild(iframe);
+        embedWrap.style.display = 'block';
+        ytToggle.textContent = '▼ ' + (item.video_title || '(no title)');
+      } else {
+        embedWrap.innerHTML = '';
+        embedWrap.style.display = 'none';
+        ytToggle.textContent = '▶ ' + (item.video_title || '(no title)');
+      }
+    });
+
     header.appendChild(ytTitle);
 
     const llmRow = document.createElement('div');
@@ -799,13 +897,13 @@
       `<span class="ri-label">AI thinks:</span>` +
       `<span class="ri-movie">${esc(movieTitle)}</span>` +
       (yearLabel ? `<span class="ri-year">${esc(yearLabel)}</span>` : '') +
-      `<span class="ri-conf ${confClass}">${confPct}%</span>`;
+      (topScore != null ? `<span class="ri-conf ${confClass}">Score: ${topScore}</span>` : '');
     header.appendChild(llmRow);
 
-    if (rm.reason) {
+    if (rm.match_reason) {
       const reason = document.createElement('div');
       reason.className = 'ri-reason';
-      reason.textContent = rm.reason;
+      reason.textContent = rm.match_reason.replace(/_/g, ' ');
       header.appendChild(reason);
     }
     el.appendChild(header);
@@ -842,6 +940,46 @@
     const searchResults = document.createElement('div');
     searchResults.className = 'ri-search-results';
     searchWrap.appendChild(searchResults);
+
+    // Manual TMDB ID / URL input
+    const manualWrap = document.createElement('div');
+    manualWrap.className = 'ri-manual-wrap';
+
+    const manualInput = document.createElement('input');
+    manualInput.type = 'text';
+    manualInput.className = 'ri-manual-input';
+    manualInput.placeholder = 'Or paste TMDB link / ID…';
+    manualWrap.appendChild(manualInput);
+
+    const manualBtn = document.createElement('button');
+    manualBtn.className = 'ri-btn ri-manual-btn';
+    manualBtn.textContent = 'Use this ID';
+    manualBtn.addEventListener('click', async () => {
+      const parsed = parseTmdbInput(manualInput.value);
+      if (!parsed) {
+        showItemError(el, 'Enter a valid TMDB ID or URL');
+        return;
+      }
+      manualBtn.textContent = '…';
+      manualBtn.disabled = true;
+      try {
+        const res = await fetch(`/review/${item.id}/manual`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tmdb_id: parsed.id, media_type: parsed.media_type || 'movie' }),
+        });
+        if (!res.ok) throw new Error();
+        dismissItem(el);
+        decrementBadge();
+      } catch {
+        manualBtn.textContent = 'Use this ID';
+        manualBtn.disabled = false;
+        showItemError(el, 'Could not confirm — try again');
+      }
+    });
+    manualWrap.appendChild(manualBtn);
+
+    searchWrap.appendChild(manualWrap);
     el.appendChild(searchWrap);
 
     // ── Actions ───────────────────────────────────────────────────────────
@@ -873,8 +1011,11 @@
     }
 
     candRow.addEventListener('click', e => {
-      const card = e.target.closest('.ri-candidate');
-      if (card) selectCandidate(card, card.dataset.tmdbId);
+      const btn = e.target.closest('.rc-select-btn');
+      if (btn) {
+        const card = btn.closest('.ri-candidate');
+        if (card) selectCandidate(card, card.dataset.tmdbId);
+      }
     });
 
     // Wire search input with debounce
@@ -903,6 +1044,13 @@
     const year   = c.release_date ? c.release_date.slice(0, 4) : '';
     const rating = c.vote_average ? `★ ${Number(c.vote_average).toFixed(1)}` : '';
 
+    const tmdbUrl = `https://www.themoviedb.org/${c.media_type === 'tv' ? 'tv' : 'movie'}/${c.id}`;
+    const posterLink = document.createElement('a');
+    posterLink.href = tmdbUrl;
+    posterLink.target = '_blank';
+    posterLink.rel = 'noopener noreferrer';
+    posterLink.addEventListener('click', e => e.stopPropagation());
+
     if (c.poster_path) {
       const img = document.createElement('img');
       img.src = 'https://image.tmdb.org/t/p/w154' + c.poster_path;
@@ -914,13 +1062,14 @@
         ph.textContent = c.title;
         img.replaceWith(ph);
       });
-      card.appendChild(img);
+      posterLink.appendChild(img);
     } else {
       const ph = document.createElement('div');
       ph.className = 'rc-poster-ph';
       ph.textContent = c.title;
-      card.appendChild(ph);
+      posterLink.appendChild(ph);
     }
+    card.appendChild(posterLink);
 
     const info = document.createElement('div');
     info.className = 'rc-info';
@@ -931,8 +1080,12 @@
     const meta = document.createElement('div');
     meta.className = 'rc-meta';
     meta.textContent = [year, rating].filter(Boolean).join(' · ');
+    const selectBtn = document.createElement('button');
+    selectBtn.className = 'rc-select-btn';
+    selectBtn.textContent = 'Select';
     info.appendChild(title);
     info.appendChild(meta);
+    info.appendChild(selectBtn);
     card.appendChild(info);
 
     return card;
@@ -965,7 +1118,10 @@
       results.slice(0, 6).forEach(r => {
         const card = makeCandidateCard(r);
         // Search result cards must also use the shared selectCandidate closure
-        card.addEventListener('click', () => selectCandidate(card, r.id));
+        card.querySelector('.rc-select-btn').addEventListener('click', e => {
+          e.stopPropagation();
+          selectCandidate(card, r.id);
+        });
         resultsEl.appendChild(card);
       });
     } catch {
@@ -1329,6 +1485,10 @@
   document.getElementById('year-filter').addEventListener('change', applyFilters);
   document.getElementById('rating-filter').addEventListener('change', applyFilters);
   document.getElementById('type-filter').addEventListener('change', applyFilters);
+
+  document.getElementById('review-btn').addEventListener('click', () => {
+    switchView(currentView === 'wall' ? 'review' : 'wall');
+  });
 
   document.getElementById('refresh-btn').addEventListener('click', () => {
     document.getElementById('grid-wrap').innerHTML =

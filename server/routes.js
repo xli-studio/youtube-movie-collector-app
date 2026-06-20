@@ -120,12 +120,13 @@ function insertMovie(db, details) {
   if (existing) return existing.id;
 
   const result = db.prepare(`
-    INSERT INTO movies (tmdb_id, title, original_title, year, poster_path, backdrop_path, overview, director, genres, rating, runtime)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO movies (tmdb_id, title, original_title, year, poster_path, backdrop_path, overview, director, genres, rating, runtime, media_type)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     details.tmdb_id, details.title, details.original_title, details.year,
     details.poster_path, details.backdrop_path, details.overview,
-    details.director, details.genres, details.rating, details.runtime
+    details.director, details.genres, details.rating, details.runtime,
+    details.media_type
   );
   return result.lastInsertRowid;
 }
