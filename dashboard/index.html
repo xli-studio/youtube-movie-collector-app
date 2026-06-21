@@ -317,32 +317,15 @@
       display: flex;
       flex-direction: column;
       justify-content: flex-end;
-      padding: 12px 10px;
-      gap: 4px;
+      padding: 10px;
       pointer-events: none;
     }
     .card:hover .overlay { opacity: 1; }
 
-    .ov-title {
-      font-size: 12px;
-      font-weight: 700;
-      line-height: 1.35;
-      color: #fff;
-    }
-    .ov-director {
-      font-size: 10px;
-      color: rgba(255,255,255,0.55);
-      font-style: italic;
-    }
-    .ov-runtime {
-      font-size: 10px;
-      color: rgba(255,255,255,0.4);
-    }
     .ov-genres {
       display: flex;
       flex-wrap: wrap;
       gap: 3px;
-      margin-top: 2px;
     }
     .genre-tag {
       font-size: 9px;
@@ -1489,28 +1472,9 @@
       posterWrap.appendChild(badge);
     }
 
-    // Hover overlay
+    // Hover overlay — shows genre tags only
     const overlay = document.createElement('div');
     overlay.className = 'overlay';
-
-    const ovTitle = document.createElement('div');
-    ovTitle.className = 'ov-title';
-    ovTitle.textContent = m.title;
-    overlay.appendChild(ovTitle);
-
-    if (m.director) {
-      const dir = document.createElement('div');
-      dir.className = 'ov-director';
-      dir.textContent = `Dir. ${m.director}`;
-      overlay.appendChild(dir);
-    }
-
-    if (m.runtime) {
-      const rt = document.createElement('div');
-      rt.className = 'ov-runtime';
-      rt.textContent = `${m.runtime} min`;
-      overlay.appendChild(rt);
-    }
 
     if (m.genres && m.genres.length > 0) {
       const genreWrap = document.createElement('div');
