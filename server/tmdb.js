@@ -93,4 +93,29 @@ async function getDetails(tmdbId, mediaType, apiKey) {
   };
 }
 
-module.exports = { searchTmdb, getDetails };
+// Fetch streaming / rent / buy providers for a movie or TV show for a given region.
+// Returns { link, flatrate, rent, buy } or null if no provider data for that region.
+async function getWatchProviders(tmdbId, mediaType, watchRegion, apiKey) {
+  const endpoint = mediaType === 'tv' ? 'tv' : 'movie';
+  const response = await axios.get(`${TMDB_BASE}/${endpoint}/${tmdbId}/watch/providers`, {
+    params: { api_key: apiKey },
+    timeout: 15000,
+  });
+
+  const regionData = (response.data.results || {})[watchRegion];
+  if (!regionData) return null;
+
+  const pick = arr => (arr || []).map(p => ({
+    provider_name: p.provider_name,
+    logo_path: p.logo_path,
+  }));
+
+  return {
+    link:     regionData.link     || null,
+    flatrate: pick(regionData.flatrate),
+    rent:     pick(regionData.rent),
+    buy:      pick(regionData.buy),
+  };
+}
+
+module.exports = { searchTmdb, getDetails, getWatchProviders };

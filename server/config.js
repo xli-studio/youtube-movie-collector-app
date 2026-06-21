@@ -13,6 +13,7 @@ const DEFAULTS = {
   tmdbApiKey: '',
   port: 3457,
   confidenceThreshold: 0.85,
+  watchRegion: 'CA',
 };
 
 function loadConfig() {

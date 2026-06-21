@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { startJob, getJob } = require('./pipeline');
-const { searchTmdb, getDetails } = require('./tmdb');
+const { searchTmdb, getDetails, getWatchProviders } = require('./tmdb');
 const { getDb } = require('./db');
 const { loadConfig } = require('./config');
 
@@ -113,6 +113,40 @@ router.get('/search/tmdb', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+router.get('/movies/:id/watch-providers', async (req, res) => {
+  const db = getDb();
+  const movie = db.prepare('SELECT tmdb_id, media_type FROM movies WHERE id = ?').get(req.params.id);
+  if (!movie) return res.status(404).json({ error: 'not found' });
+
+  const config = loadConfig();
+  try {
+    const providers = await getWatchProviders(
+      movie.tmdb_id, movie.media_type || 'movie', config.watchRegion || 'CA', config.tmdbApiKey
+    );
+    res.json(providers || { flatrate: [], rent: [], buy: [], link: null });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/movies/:id/watched', (req, res) => {
+  const db = getDb();
+  const result = db.prepare(
+    "UPDATE movies SET watched_at = datetime('now') WHERE id = ?"
+  ).run(req.params.id);
+  if (result.changes === 0) return res.status(404).json({ error: 'not found' });
+  res.json({ success: true });
+});
+
+router.post('/movies/:id/unwatched', (req, res) => {
+  const db = getDb();
+  const result = db.prepare(
+    'UPDATE movies SET watched_at = NULL WHERE id = ?'
+  ).run(req.params.id);
+  if (result.changes === 0) return res.status(404).json({ error: 'not found' });
+  res.json({ success: true });
 });
 
 function insertMovie(db, details) {

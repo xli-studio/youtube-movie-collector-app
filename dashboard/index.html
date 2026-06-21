@@ -393,6 +393,47 @@
       color: var(--gold);
     }
 
+    /* Watched toggle — circle button overlaid on poster, top-right */
+    .watched-toggle {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      z-index: 3;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      border: 1.5px solid rgba(255,255,255,0.35);
+      background: rgba(0,0,0,0.55);
+      color: rgba(255,255,255,0.65);
+      font-size: 13px;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(4px);
+      transition: border-color 0.15s, background 0.15s, color 0.15s;
+    }
+    .watched-toggle:hover { border-color: var(--green); color: var(--green); }
+    .watched-toggle.is-watched { border-color: var(--green); background: var(--green); color: #fff; }
+
+    /* Watch options button — below the card meta strip */
+    .watch-options-btn {
+      display: block;
+      width: 100%;
+      margin-top: 5px;
+      padding: 4px 0;
+      font-size: 10px;
+      font-weight: 500;
+      cursor: pointer;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      color: var(--text-muted);
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .watch-options-btn:hover { color: var(--text); border-color: var(--border-hover); }
+
     /* ── Empty / loading states ─────────────────────────────────────────── */
 
     .empty, .loading-state {
@@ -759,6 +800,7 @@
     <button class="type-tab active" data-type="">All</button>
     <button class="type-tab" data-type="movie">Movies</button>
     <button class="type-tab" data-type="tv">TV Series</button>
+    <button class="type-tab" data-type="watched">Watched</button>
   </div>
   <div class="filter-bar">
     <select id="genre-filter" title="Filter by genre">
@@ -1323,11 +1365,14 @@
   function applyFilters() {
     const q     = document.getElementById('search').value.toLowerCase().trim();
     const genre = document.getElementById('genre-filter').value;
+    const isWatchedTab = currentTypeFilter === 'watched';
 
     const filtered = allMovies.filter(m => {
       if (q && !m.title.toLowerCase().includes(q) &&
           !(m.original_title || '').toLowerCase().includes(q)) return false;
       if (genre && !(m.genres || []).includes(genre)) return false;
+      if (isWatchedTab) return !!m.watched_at;
+      if (m.watched_at) return false; // exclude watched from All/Movies/TV tabs
       if (currentTypeFilter && m.media_type !== currentTypeFilter) return false;
       return true;
     });
@@ -1476,6 +1521,17 @@
       overlay.appendChild(genreWrap);
     }
 
+    // Watched toggle — top-right of poster; shows ✓ (unwatch action) when already watched
+    const watchedToggle = document.createElement('button');
+    watchedToggle.className = 'watched-toggle' + (m.watched_at ? ' is-watched' : '');
+    watchedToggle.title = m.watched_at ? 'Unwatch' : 'Mark as watched';
+    watchedToggle.textContent = m.watched_at ? '↩' : '✓';
+    watchedToggle.addEventListener('click', async e => {
+      e.stopPropagation();
+      await toggleWatched(m.id, !!m.watched_at);
+    });
+    posterWrap.appendChild(watchedToggle);
+
     posterWrap.appendChild(overlay);
     card.appendChild(posterWrap);
 
@@ -1505,6 +1561,28 @@
     }
 
     info.appendChild(meta);
+
+    const watchBtn = document.createElement('button');
+    watchBtn.className = 'watch-options-btn';
+    watchBtn.textContent = '▶ View watch options';
+    watchBtn.addEventListener('click', async e => {
+      e.stopPropagation();
+      try {
+        const res = await fetch(`/movies/${m.id}/watch-providers`);
+        const data = await res.json();
+        if (data.link) {
+          window.open(data.link, '_blank', 'noopener,noreferrer');
+        } else {
+          watchBtn.textContent = 'No watch info available';
+          setTimeout(() => { watchBtn.textContent = '▶ View watch options'; }, 2500);
+        }
+      } catch {
+        watchBtn.textContent = 'Could not load — try again';
+        setTimeout(() => { watchBtn.textContent = '▶ View watch options'; }, 2500);
+      }
+    });
+    info.appendChild(watchBtn);
+
     card.appendChild(info);
 
     return card;
@@ -1529,6 +1607,20 @@
         <h2>No matches</h2>
         <p>No movies match your current search or filters.</p>
       </div>`;
+  }
+
+  // ── Watched toggling ───────────────────────────────────────────────────────
+
+  async function toggleWatched(movieId, isWatched) {
+    const endpoint = isWatched ? `/movies/${movieId}/unwatched` : `/movies/${movieId}/watched`;
+    try {
+      const res = await fetch(endpoint, { method: 'POST' });
+      if (!res.ok) return;
+      const movie = allMovies.find(m => m.id === movieId);
+      if (movie) movie.watched_at = isWatched ? null : new Date().toISOString();
+      buildFilterOptions();
+      applyFilters();
+    } catch {}
   }
 
   // ── Review badge ───────────────────────────────────────────────────────────

@@ -27,6 +27,7 @@ function getDb() {
       rating REAL,
       runtime INTEGER,
       media_type TEXT,
+      watched_at TEXT,
       confirmed_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -52,6 +53,12 @@ function getDb() {
 
   try {
     db.prepare("ALTER TABLE movies ADD COLUMN release_date TEXT").run();
+  } catch (e) {
+    // column already exists — ignore
+  }
+
+  try {
+    db.prepare("ALTER TABLE movies ADD COLUMN watched_at TEXT").run();
   } catch (e) {
     // column already exists — ignore
   }
