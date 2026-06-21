@@ -18,6 +18,7 @@ function getDb() {
       title TEXT NOT NULL,
       original_title TEXT,
       year INTEGER,
+      release_date TEXT,
       poster_path TEXT,
       backdrop_path TEXT,
       overview TEXT,
@@ -46,6 +47,12 @@ function getDb() {
   try {
     db.prepare("ALTER TABLE movies ADD COLUMN media_type TEXT").run();
   } catch {
+    // column already exists — ignore
+  }
+
+  try {
+    db.prepare("ALTER TABLE movies ADD COLUMN release_date TEXT").run();
+  } catch (e) {
     // column already exists — ignore
   }
 

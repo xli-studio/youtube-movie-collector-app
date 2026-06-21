@@ -71,6 +71,7 @@ async function getDetails(tmdbId, mediaType, apiKey) {
   const original_title = data.original_title || data.original_name || '';
   const release = data.release_date || data.first_air_date || '';
   const year = release ? parseInt(release.slice(0, 4)) : null;
+  const release_date = (isTv ? data.first_air_date : data.release_date) || null;
   const genres = data.genres?.map(g => g.name) || [];
   const runtime = isTv ? (data.episode_run_time?.[0] || null) : (data.runtime || null);
 
@@ -79,6 +80,7 @@ async function getDetails(tmdbId, mediaType, apiKey) {
     title,
     original_title,
     year,
+    release_date,
     poster_path: data.poster_path,
     backdrop_path: data.backdrop_path,
     overview: data.overview,

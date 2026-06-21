@@ -120,10 +120,10 @@ function insertMovie(db, details) {
   if (existing) return existing.id;
 
   const result = db.prepare(`
-    INSERT INTO movies (tmdb_id, title, original_title, year, poster_path, backdrop_path, overview, director, genres, rating, runtime, media_type)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO movies (tmdb_id, title, original_title, year, release_date, poster_path, backdrop_path, overview, director, genres, rating, runtime, media_type)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
-    details.tmdb_id, details.title, details.original_title, details.year,
+    details.tmdb_id, details.title, details.original_title, details.year, details.release_date,
     details.poster_path, details.backdrop_path, details.overview,
     details.director, details.genres, details.rating, details.runtime,
     details.media_type

@@ -304,6 +304,21 @@
       z-index: 2;
     }
 
+    .upcoming-badge {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      background: #d97706;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border-radius: 999px;
+      z-index: 2;
+    }
+
     /* Hover overlay */
     .overlay {
       position: absolute;
@@ -1407,6 +1422,14 @@
       ph.className = 'poster-placeholder';
       ph.textContent = m.title;
       posterWrap.appendChild(ph);
+    }
+
+    // Upcoming badge (release_date is in the future)
+    if (m.release_date && new Date(m.release_date) > new Date()) {
+      const upBadge = document.createElement('div');
+      upBadge.className = 'upcoming-badge';
+      upBadge.textContent = 'Upcoming';
+      posterWrap.appendChild(upBadge);
     }
 
     // Playlist source badge (shown when movie came from > 1 playlist)
