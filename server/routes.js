@@ -149,6 +149,61 @@ router.post('/movies/:id/unwatched', (req, res) => {
   res.json({ success: true });
 });
 
+router.get('/export/letterboxd', (req, res) => {
+  const db = getDb();
+  const movies = db.prepare('SELECT * FROM movies').all();
+
+  // req.query.categories is a comma-separated list, e.g. "movie,tv,watched"
+  const categories = (req.query.categories || '').split(',').filter(Boolean);
+  if (categories.length === 0) {
+    return res.status(400).json({ error: 'categories required' });
+  }
+
+  const selected = movies.filter(m => {
+    return categories.some(cat => {
+      if (cat === 'movie')   return m.media_type === 'movie' || !m.media_type;
+      if (cat === 'tv')      return m.media_type === 'tv';
+      if (cat === 'watched') return !!m.watched_at;
+      if (cat === 'all')     return true;
+      return false;
+    });
+  });
+
+  // Deduplicate by id (a movie could match multiple selected categories,
+  // e.g. media_type === 'tv' AND watched_at set)
+  const seen = new Set();
+  const deduped = selected.filter(m => {
+    if (seen.has(m.id)) return false;
+    seen.add(m.id);
+    return true;
+  });
+
+  // Build Letterboxd CSV: tmdbID, Title, Year
+  // CSV must be UTF-8, comma-delimited, no space after commas, quoted strings
+  // containing commas or quotes, escaped quotes via backslash.
+  const escapeCsvField = (val) => {
+    if (val == null) return '';
+    const str = String(val);
+    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+      return `"${str.replace(/"/g, '\\"')}"`;
+    }
+    return str;
+  };
+
+  const header = 'tmdbID,Title,Year';
+  const rows = deduped.map(m => [
+    m.tmdb_id ?? '',
+    escapeCsvField(m.title),
+    m.year ?? '',
+  ].join(','));
+
+  const csv = [header, ...rows].join('\n');
+
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="letterboxd-import.csv"');
+  res.send(csv);
+});
+
 function insertMovie(db, details) {
   const existing = db.prepare('SELECT id FROM movies WHERE tmdb_id = ?').get(details.tmdb_id);
   if (existing) return existing.id;

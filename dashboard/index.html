@@ -750,6 +750,97 @@
       .grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
       .grid-wrap { padding: 12px; }
     }
+
+    /* ── Export modal ───────────────────────────────────────────────────── */
+    #export-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 300;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .export-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.65);
+    }
+    .export-dialog {
+      position: relative;
+      background: var(--surface);
+      border: 1px solid var(--border-hover);
+      border-radius: 12px;
+      padding: 22px 24px 20px;
+      width: min(340px, 90vw);
+    }
+    .export-dialog-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .export-dialog-header h2 { font-size: 14px; font-weight: 700; color: var(--text); }
+    .export-close-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 14px;
+      line-height: 1;
+      cursor: pointer;
+      padding: 2px 5px;
+      border-radius: 4px;
+      transition: color 0.15s;
+    }
+    .export-close-btn:hover { color: var(--text); }
+    .export-checkbox-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .export-checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-size: 13px;
+      color: var(--text);
+      cursor: pointer;
+      user-select: none;
+    }
+    .export-checkbox-row input[type="checkbox"] {
+      width: 15px;
+      height: 15px;
+      flex-shrink: 0;
+      cursor: pointer;
+      accent-color: #5b9cf6;
+    }
+    .export-note {
+      font-size: 11px;
+      color: var(--text-muted);
+      line-height: 1.55;
+      margin-bottom: 16px;
+    }
+    .export-note a { color: #5b9cf6; text-decoration: none; }
+    .export-note a:hover { text-decoration: underline; }
+    .export-validation {
+      font-size: 11px;
+      color: var(--red);
+      margin-bottom: 10px;
+      display: none;
+    }
+    .export-dialog-actions { display: flex; justify-content: flex-end; }
+    .export-do-btn {
+      padding: 6px 14px;
+      background: #5b9cf6;
+      border: 1px solid #5b9cf6;
+      border-radius: 7px;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .export-do-btn:hover { background: #4a8de0; border-color: #4a8de0; }
   </style>
 </head>
 <body>
@@ -771,6 +862,8 @@
   <div class="spacer"></div>
 
   <button class="topbar-btn" id="refresh-btn" title="Refresh library">↺</button>
+
+  <button class="topbar-btn" id="export-btn" title="Export to Letterboxd">↓ Export</button>
 
   <button class="topbar-btn" id="review-btn">
     Review
@@ -817,6 +910,38 @@
       <h2>Review queue</h2>
       <p>This view is coming in the next build step.<br>
          Pending items are movies the AI wasn't confident about.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ── Export modal ──────────────────────────────────────────────────────── -->
+<div id="export-modal" style="display:none">
+  <div class="export-backdrop" id="export-backdrop"></div>
+  <div class="export-dialog">
+    <div class="export-dialog-header">
+      <h2>Export to Letterboxd</h2>
+      <button class="export-close-btn" id="export-close-btn" title="Close">✕</button>
+    </div>
+    <div class="export-checkbox-list">
+      <label class="export-checkbox-row">
+        <input type="checkbox" value="all"> All
+      </label>
+      <label class="export-checkbox-row">
+        <input type="checkbox" value="movie"> Movies
+      </label>
+      <label class="export-checkbox-row">
+        <input type="checkbox" value="tv"> TV Series
+      </label>
+      <label class="export-checkbox-row">
+        <input type="checkbox" value="watched"> Watched
+      </label>
+    </div>
+    <p class="export-note">Generates a CSV file you can import at
+      <a href="https://letterboxd.com/import" target="_blank" rel="noopener noreferrer">letterboxd.com/import</a>
+    </p>
+    <div class="export-validation" id="export-validation">Select at least one category.</div>
+    <div class="export-dialog-actions">
+      <button class="export-do-btn" id="export-do-btn">↓ Export CSV</button>
     </div>
   </div>
 </div>
@@ -1660,6 +1785,38 @@
 
   // Boot
   loadLibrary();
+
+  // ── Export modal ───────────────────────────────────────────────────────────
+
+  function openExportModal() {
+    document.getElementById('export-modal').style.display = 'flex';
+    document.getElementById('export-validation').style.display = 'none';
+  }
+
+  function closeExportModal() {
+    document.getElementById('export-modal').style.display = 'none';
+  }
+
+  document.getElementById('export-btn').addEventListener('click', openExportModal);
+  document.getElementById('export-close-btn').addEventListener('click', closeExportModal);
+  document.getElementById('export-backdrop').addEventListener('click', closeExportModal);
+
+  document.getElementById('export-do-btn').addEventListener('click', () => {
+    const checked = [...document.querySelectorAll('.export-checkbox-row input')]
+      .filter(cb => cb.checked).map(cb => cb.value);
+
+    const validEl = document.getElementById('export-validation');
+    if (checked.length === 0) {
+      validEl.style.display = 'block';
+      return;
+    }
+    validEl.style.display = 'none';
+
+    // 'all' is a superset of every other category — no need to include others
+    const categories = checked.includes('all') ? 'all' : checked.join(',');
+    window.location.href = `/export/letterboxd?categories=${encodeURIComponent(categories)}`;
+    closeExportModal();
+  });
 </script>
 </body>
 </html>
