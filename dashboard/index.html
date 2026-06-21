@@ -86,11 +86,76 @@
     #search::placeholder { color: var(--text-muted); }
     #search:focus { border-color: var(--border-hover); }
 
-    .filter-row {
+    /* ── Type tabs ──────────────────────────────────────────────────────── */
+    .type-tabs {
       display: flex;
+      padding: 0 20px;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+    }
+    .type-tab {
+      padding: 10px 18px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px solid transparent;
+      border-bottom: none;
+      border-radius: 7px 7px 0 0;
+      margin-bottom: -1px;
+      transition: color 0.15s, background 0.15s, border-color 0.15s;
+    }
+    .type-tab:hover:not(.active) { color: var(--text); background: var(--surface2); }
+    .type-tab.active {
+      color: var(--text);
+      background: var(--surface);
+      border-color: var(--border);
+      border-bottom-color: var(--surface);
+    }
+
+    /* ── Filter bar ──────────────────────────────────────────────────────── */
+    .filter-bar {
+      display: flex;
+      align-items: center;
       gap: 8px;
+      padding: 9px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .clear-filters-btn {
+      margin-left: auto;
+      padding: 5px 11px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .clear-filters-btn:hover { color: var(--text); border-color: var(--border-hover); }
+
+    /* ── Sort controls ───────────────────────────────────────────────────── */
+    .sort-controls {
+      display: flex;
+      gap: 4px;
       align-items: center;
     }
+    .sort-btn {
+      padding: 5px 11px;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      white-space: nowrap;
+      transition: color 0.15s, border-color 0.15s, background 0.15s;
+    }
+    .sort-btn:hover { color: var(--text); border-color: var(--border-hover); }
+    .sort-btn.active { color: var(--text); background: var(--surface2); border-color: var(--border-hover); }
 
     select {
       padding: 6px 28px 6px 10px;
@@ -639,7 +704,8 @@
     /* ── Responsive ─────────────────────────────────────────────────────── */
 
     @media (max-width: 640px) {
-      .filter-row { display: none; }
+      .type-tabs { display: none; }
+      .filter-bar { display: none; }
       .logo-text { display: none; }
       .grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
       .grid-wrap { padding: 12px; }
@@ -662,27 +728,6 @@
     <input id="search" type="search" placeholder="Search movies…" autocomplete="off" spellcheck="false">
   </div>
 
-  <div class="filter-row">
-    <select id="genre-filter" title="Filter by genre">
-      <option value="">All genres</option>
-    </select>
-    <select id="year-filter" title="Filter by year">
-      <option value="">All years</option>
-    </select>
-    <select id="rating-filter" title="Minimum rating">
-      <option value="">Any rating</option>
-      <option value="9">★ 9+</option>
-      <option value="8">★ 8+</option>
-      <option value="7">★ 7+</option>
-      <option value="6">★ 6+</option>
-    </select>
-    <select id="type-filter" title="Filter by type">
-      <option value="">All types</option>
-      <option value="movie">Movies</option>
-      <option value="tv">TV Series</option>
-    </select>
-  </div>
-
   <div class="spacer"></div>
 
   <button class="topbar-btn" id="refresh-btn" title="Refresh library">↺</button>
@@ -695,9 +740,22 @@
 
 <!-- ── Poster Wall view ──────────────────────────────────────────────────── -->
 <div id="view-wall">
-  <div class="statsbar" id="statsbar">
-    <div class="spinner"></div>
-    <span>Loading library…</span>
+  <div class="type-tabs" id="type-tabs">
+    <button class="type-tab active" data-type="">All</button>
+    <button class="type-tab" data-type="movie">Movies</button>
+    <button class="type-tab" data-type="tv">TV Series</button>
+  </div>
+  <div class="filter-bar">
+    <select id="genre-filter" title="Filter by genre">
+      <option value="">Genres</option>
+    </select>
+    <div class="sort-controls" id="sort-controls">
+      <button class="sort-btn active" data-sort="added">Date added ▼</button>
+      <button class="sort-btn" data-sort="year">Year</button>
+      <button class="sort-btn" data-sort="runtime">Runtime</button>
+      <button class="sort-btn" data-sort="rating">Rating</button>
+    </div>
+    <button class="clear-filters-btn" onclick="clearFilters()">✕ Clear filters</button>
   </div>
   <main class="grid-wrap" id="grid-wrap">
     <div class="loading-state">
@@ -729,6 +787,8 @@
 
   let allMovies  = [];
   let currentView = 'wall';
+  let currentTypeFilter = '';
+  let currentSort = { field: 'added', direction: 'desc' };
 
   function esc(str) {
     const div = document.createElement('div');
@@ -773,7 +833,6 @@
           <p>Make sure the local server is running:<br>
              <code>npm start</code></p>
         </div>`;
-      document.getElementById('statsbar').innerHTML = '<span>Could not connect</span>';
     }
   }
 
@@ -1214,14 +1273,11 @@
 
   function buildFilterOptions() {
     const genres = new Set();
-    const years  = new Set();
     for (const m of allMovies) {
       (m.genres || []).forEach(g => genres.add(g));
-      if (m.year) years.add(m.year);
     }
 
-    populateSelect('genre-filter', [...genres].sort(),  g => g);
-    populateSelect('year-filter',  [...years].sort((a,b) => b - a), y => y);
+    populateSelect('genre-filter', [...genres].sort(), g => g);
   }
 
   function populateSelect(id, values, label) {
@@ -1237,70 +1293,64 @@
     });
   }
 
+  const SORT_LABELS = { added: 'Date added', year: 'Year', runtime: 'Runtime', rating: 'Rating' };
+
+  function renderSortButtons() {
+    document.querySelectorAll('.sort-btn').forEach(btn => {
+      const field = btn.dataset.sort;
+      const isActive = field === currentSort.field;
+      btn.classList.toggle('active', isActive);
+      const arrow = isActive ? (currentSort.direction === 'desc' ? ' ▼' : ' ▲') : '';
+      btn.textContent = SORT_LABELS[field] + arrow;
+    });
+  }
+
   function applyFilters() {
-    const q         = document.getElementById('search').value.toLowerCase().trim();
-    const genre     = document.getElementById('genre-filter').value;
-    const year      = parseInt(document.getElementById('year-filter').value) || 0;
-    const minRating = parseFloat(document.getElementById('rating-filter').value) || 0;
-    const type      = document.getElementById('type-filter').value;
+    const q     = document.getElementById('search').value.toLowerCase().trim();
+    const genre = document.getElementById('genre-filter').value;
 
     const filtered = allMovies.filter(m => {
       if (q && !m.title.toLowerCase().includes(q) &&
           !(m.original_title || '').toLowerCase().includes(q)) return false;
       if (genre && !(m.genres || []).includes(genre)) return false;
-      if (year  && m.year !== year) return false;
-      if (minRating && (m.rating || 0) < minRating) return false;
-      if (type  && m.media_type !== type) return false;
+      if (currentTypeFilter && m.media_type !== currentTypeFilter) return false;
       return true;
     });
 
-    updateStatsBar(filtered, allMovies);
-    renderGrid(filtered);
-  }
-
-  // ── Stats bar ──────────────────────────────────────────────────────────────
-
-  function formatLibraryCount(movies) {
-    const movieCount   = movies.filter(m => m.media_type === 'movie').length;
-    const tvCount      = movies.filter(m => m.media_type === 'tv').length;
-    const unknownCount = movies.filter(m => !m.media_type).length;
-    const effectiveMovies = movieCount + unknownCount;
-    const parts = [];
-    if (effectiveMovies > 0)
-      parts.push(`<strong>${effectiveMovies}</strong>&nbsp;movie${effectiveMovies !== 1 ? 's' : ''}`);
-    if (tvCount > 0)
-      parts.push(`<strong>${tvCount}</strong>&nbsp;TV&nbsp;series`);
-    if (parts.length === 0) return '<strong>0</strong>&nbsp;movies';
-    return parts.join('&nbsp;·&nbsp;');
-  }
-
-  function updateStatsBar(filtered, all) {
-    const el = document.getElementById('statsbar');
-    const filterActive = filtered.length < all.length;
-    el.innerHTML = filterActive
-      ? `<strong>${filtered.length}</strong>&nbsp;of&nbsp;<strong>${all.length}</strong>&nbsp;titles`
-      : `${formatLibraryCount(all)}&nbsp;in your library`;
-    if (filterActive) {
-      const clear = document.createElement('button');
-      clear.className = 'topbar-btn';
-      clear.textContent = '✕ Clear filters';
-      clear.style.cssText = 'font-size:11px;padding:3px 9px;';
-      clear.onclick = clearFilters;
-      el.appendChild(clear);
+    // Sort filtered results (nulls always sort to the end regardless of direction)
+    if (currentSort.field !== null) {
+      const desc = currentSort.direction === 'desc';
+      filtered.sort((a, b) => {
+        let av, bv;
+        if (currentSort.field === 'added') {
+          av = a.confirmed_at || ''; bv = b.confirmed_at || '';
+        } else if (currentSort.field === 'year') {
+          av = a.year; bv = b.year;
+        } else if (currentSort.field === 'runtime') {
+          av = a.runtime; bv = b.runtime;
+        } else {
+          av = a.rating; bv = b.rating;
+        }
+        if (av == null && bv == null) return 0;
+        if (av == null) return 1;
+        if (bv == null) return -1;
+        if (desc) return av > bv ? -1 : av < bv ? 1 : 0;
+        return av > bv ? 1 : av < bv ? -1 : 0;
+      });
     }
-    const ts = document.createElement('span');
-    ts.className = 'ml';
-    ts.style.fontSize = '11px';
-    ts.textContent = `Updated ${new Date().toLocaleTimeString()}`;
-    el.appendChild(ts);
+
+    renderGrid(filtered);
   }
 
   function clearFilters() {
     document.getElementById('search').value = '';
     document.getElementById('genre-filter').value = '';
-    document.getElementById('year-filter').value  = '';
-    document.getElementById('rating-filter').value = '';
-    document.getElementById('type-filter').value   = '';
+    currentTypeFilter = '';
+    document.querySelectorAll('.type-tab').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.type === '');
+    });
+    currentSort = { field: 'added', direction: 'desc' };
+    renderSortButtons();
     applyFilters();
   }
 
@@ -1482,9 +1532,32 @@
 
   document.getElementById('search').addEventListener('input', applyFilters);
   document.getElementById('genre-filter').addEventListener('change', applyFilters);
-  document.getElementById('year-filter').addEventListener('change', applyFilters);
-  document.getElementById('rating-filter').addEventListener('change', applyFilters);
-  document.getElementById('type-filter').addEventListener('change', applyFilters);
+
+  // Sort buttons
+  document.getElementById('sort-controls').addEventListener('click', e => {
+    const btn = e.target.closest('.sort-btn');
+    if (!btn) return;
+    const field = btn.dataset.sort;
+    if (currentSort.field === field) {
+      currentSort = currentSort.direction === 'desc'
+        ? { field, direction: 'asc' }
+        : { field: null, direction: null };
+    } else {
+      currentSort = { field, direction: 'desc' };
+    }
+    renderSortButtons();
+    applyFilters();
+  });
+
+  // Type tabs
+  document.getElementById('type-tabs').addEventListener('click', e => {
+    const tab = e.target.closest('.type-tab');
+    if (!tab) return;
+    document.querySelectorAll('.type-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    currentTypeFilter = tab.dataset.type;
+    applyFilters();
+  });
 
   document.getElementById('review-btn').addEventListener('click', () => {
     switchView(currentView === 'wall' ? 'review' : 'wall');
@@ -1493,8 +1566,6 @@
   document.getElementById('refresh-btn').addEventListener('click', () => {
     document.getElementById('grid-wrap').innerHTML =
       '<div class="loading-state"><div class="spinner"></div></div>';
-    document.getElementById('statsbar').innerHTML =
-      '<div class="spinner"></div><span>Refreshing…</span>';
     loadLibrary();
   });
 
